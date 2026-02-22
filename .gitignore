@@ -1,0 +1,9 @@
+!.env.example
+*.local.*
+.env
+.env.*
+/.idea/
+/.svelte-kit/
+/docs/
+/node_modules/
+/src/_common/infrastructure/svelte/lib/paraglide/
