@@ -12,23 +12,22 @@
     import OptionsPanel from '$lib/components/rebalance/OptionsPanel.svelte';
     import * as m from '$lib/paraglide/messages';
     import {
+        captureSnapshot,
         createDefaultUiState,
         createHistoryState,
         createNextAsset,
-        hideUndoToast,
         loadUiState,
         normalizeNumericInput,
         restoreSnapshot,
         saveUiState,
         scheduleSnapshot,
-        showUndoToast,
         toAllocationRows,
         toOptionActionRows,
         toOverview
     } from '$rebalance/presentation/rebalancer-ui-state';
 
     let state = browser ? loadUiState() : createDefaultUiState();
-    const history = createHistoryState();
+    let history = createHistoryState();
 
     let invalidFields = {} as Record<string, Partial<Record<'marketValue' | 'targetWeight' | 'investedCapital', boolean>>>;
     let overview = toOverview(state, {
@@ -46,6 +45,13 @@
     let focusedNumericField: string | null = null;
 
     recalculate();
+
+    function refreshHistory(): void {
+        history = {
+            ...history,
+            snapshots: [...history.snapshots]
+        };
+    }
 
     function recalculate(): void {
         const mapped = toOverview(state, {
@@ -115,6 +121,7 @@
 
     function updateAsset(assetId: string, patch: Partial<typeof state.assets[number]>): void {
         scheduleSnapshot(history, state);
+        refreshHistory();
         const sanitized = sanitizeAssetPatch(patch);
 
         state = {
@@ -131,7 +138,8 @@
             return;
         }
 
-        scheduleSnapshot(history, state);
+        captureSnapshot(history, state);
+        refreshHistory();
 
         const draft = {
             ...state,
@@ -150,7 +158,8 @@
             return;
         }
 
-        scheduleSnapshot(history, state);
+        captureSnapshot(history, state);
+        refreshHistory();
         state = {
             ...state,
             assets: state.assets.filter((asset: typeof state.assets[number]) => asset.id !== assetId)
@@ -158,16 +167,17 @@
 
         recalculate();
         scheduleSave();
-        showUndoToast(history);
+        refreshHistory();
     }
 
     function clearAll(): void {
-        scheduleSnapshot(history, state);
+        captureSnapshot(history, state);
+        refreshHistory();
         state = createDefaultUiState();
 
         recalculate();
         scheduleSave();
-        showUndoToast(history);
+        refreshHistory();
     }
 
     function clearAssetField(assetId: string, field: 'marketValueInput' | 'targetWeightInput' | 'investedCapitalInput'): void {
@@ -178,7 +188,7 @@
         const previous = restoreSnapshot(history);
 
         if (!previous) {
-            hideUndoToast(history);
+            refreshHistory();
             return;
         }
 
@@ -186,9 +196,7 @@
         recalculate();
         scheduleSave();
 
-        if (history.snapshots.length === 0) {
-            hideUndoToast(history);
-        }
+        refreshHistory();
     }
 
     function actionLabel(action: 'BUY' | 'SELL' | 'HOLD'): string {
@@ -290,15 +298,6 @@
             </button>
         </nav>
     </header>
-
-    {#if history.undoToastVisible}
-        <aside class="undo-toast">
-            <button class="rebalancer-button" onclick={undoChange}>
-                <Undo2 size={14} />
-                {m.page_rebalancer_undo()}
-            </button>
-        </aside>
-    {/if}
 
     <section class="rebalancer-grid">
         <AssetsPanel

@@ -1,7 +1,7 @@
 {
     "name": "etf24-app",
     "private": true,
-    "version": "0.1.0",
+    "version": "0.1.1",
     "type": "module",
     "scripts": {
         "dev": "vite dev --config frameworks/config/vite.config.ts",
