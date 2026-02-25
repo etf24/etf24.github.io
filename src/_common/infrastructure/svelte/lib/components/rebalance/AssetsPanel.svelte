@@ -6,6 +6,7 @@
     import * as m from '$lib/paraglide/messages';
 
     type AssetField = 'marketValueInput' | 'targetWeightInput' | 'investedCapitalInput';
+    type EditableField = 'name' | AssetField;
     type MoneyField = 'marketValue' | 'investedCapital';
 
     let {
@@ -13,10 +14,13 @@
         invalidFields,
         currencyCode,
         taxCountryCode,
-        onUpdateAsset,
+        onUpdateAssetDraft,
+        onCommitAssetPatch,
         onAddAsset,
         onRemoveAsset,
         onClearField,
+        onFieldFocus,
+        onFieldBlur,
         onMoneyFocus,
         onMoneyBlur,
         displayMoneyInput
@@ -25,10 +29,13 @@
         invalidFields: InvalidFieldMap;
         currencyCode: CurrencyCode;
         taxCountryCode: TaxCountryCode;
-        onUpdateAsset: (assetId: string, patch: Partial<UiState['assets'][number]>) => void;
+        onUpdateAssetDraft: (assetId: string, patch: Partial<UiState['assets'][number]>) => void;
+        onCommitAssetPatch: (assetId: string, patch: Partial<UiState['assets'][number]>) => void;
         onAddAsset: () => void;
         onRemoveAsset: (assetId: string) => void;
         onClearField: (assetId: string, field: AssetField) => void;
+        onFieldFocus: (assetId: string, field: EditableField) => void;
+        onFieldBlur: (assetId: string, field: EditableField) => void;
         onMoneyFocus: (assetId: string, field: MoneyField) => void;
         onMoneyBlur: () => void;
         displayMoneyInput: (assetId: string, field: MoneyField, rawValue: string) => string;
@@ -73,7 +80,10 @@
                         class="asset-card__name"
                         value={asset.name}
                         placeholder={asset.label}
-                        oninput={(event) => onUpdateAsset(asset.id, {name: (event.currentTarget as HTMLInputElement).value})}
+                        oninput={(event) =>
+                            onUpdateAssetDraft(asset.id, {name: (event.currentTarget as HTMLInputElement).value})}
+                        onfocus={() => onFieldFocus(asset.id, 'name')}
+                        onblur={() => onFieldBlur(asset.id, 'name')}
                     />
                     <button
                         class="asset-card__remove asset-card__remove--danger"
@@ -92,9 +102,15 @@
                                 class="form-field__input {fieldIsInvalid(asset.id, 'marketValue') ? 'form-field__input--invalid' : ''}"
                                 value={displayMoneyInput(asset.id, 'marketValue', asset.marketValueInput)}
                                 oninput={(event) =>
-                                    onUpdateAsset(asset.id, {marketValueInput: (event.currentTarget as HTMLInputElement).value})}
-                                onfocus={() => onMoneyFocus(asset.id, 'marketValue')}
-                                onblur={onMoneyBlur}
+                                    onUpdateAssetDraft(asset.id, {marketValueInput: (event.currentTarget as HTMLInputElement).value})}
+                                onfocus={() => {
+                                    onFieldFocus(asset.id, 'marketValueInput');
+                                    onMoneyFocus(asset.id, 'marketValue');
+                                }}
+                                onblur={() => {
+                                    onMoneyBlur();
+                                    onFieldBlur(asset.id, 'marketValueInput');
+                                }}
                             />
                             {#if asset.marketValueInput !== ''}
                                 <button
@@ -113,7 +129,9 @@
                                 class="form-field__input {fieldIsInvalid(asset.id, 'targetWeight') ? 'form-field__input--invalid' : ''}"
                                 value={asset.targetWeightInput}
                                 oninput={(event) =>
-                                    onUpdateAsset(asset.id, {targetWeightInput: (event.currentTarget as HTMLInputElement).value})}
+                                    onUpdateAssetDraft(asset.id, {targetWeightInput: (event.currentTarget as HTMLInputElement).value})}
+                                onfocus={() => onFieldFocus(asset.id, 'targetWeightInput')}
+                                onblur={() => onFieldBlur(asset.id, 'targetWeightInput')}
                             />
                             {#if asset.targetWeightInput !== ''}
                                 <button
@@ -132,9 +150,17 @@
                                 class="form-field__input {fieldIsInvalid(asset.id, 'investedCapital') ? 'form-field__input--invalid' : ''}"
                                 value={displayMoneyInput(asset.id, 'investedCapital', asset.investedCapitalInput)}
                                 oninput={(event) =>
-                                    onUpdateAsset(asset.id, {investedCapitalInput: (event.currentTarget as HTMLInputElement).value})}
-                                onfocus={() => onMoneyFocus(asset.id, 'investedCapital')}
-                                onblur={onMoneyBlur}
+                                    onUpdateAssetDraft(asset.id, {
+                                        investedCapitalInput: (event.currentTarget as HTMLInputElement).value
+                                    })}
+                                onfocus={() => {
+                                    onFieldFocus(asset.id, 'investedCapitalInput');
+                                    onMoneyFocus(asset.id, 'investedCapital');
+                                }}
+                                onblur={() => {
+                                    onMoneyBlur();
+                                    onFieldBlur(asset.id, 'investedCapitalInput');
+                                }}
                             />
                             {#if asset.investedCapitalInput !== ''}
                                 <button
@@ -153,13 +179,13 @@
                                 class="form-field__input"
                                 value={asset.partialExemption}
                                 onchange={(event) =>
-                                    onUpdateAsset(asset.id, {
+                                    onCommitAssetPatch(asset.id, {
                                         partialExemption: Number((event.currentTarget as HTMLSelectElement).value) as 0 | 15 | 30
                                     })}
                             >
-                                <option value={0}>0</option>
-                                <option value={15}>15</option>
-                                <option value={30}>30</option>
+                                <option value={0} selected={asset.partialExemption === 0}>0</option>
+                                <option value={15} selected={asset.partialExemption === 15}>15</option>
+                                <option value={30} selected={asset.partialExemption === 30}>30</option>
                             </select>
                         </fieldset>
                     {/if}

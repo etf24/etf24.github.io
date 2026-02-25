@@ -3,7 +3,7 @@
     import {currency} from '$lib/currency.svelte';
     import {formatNumericInputForBlur, stripGroupingSeparators} from '$lib/formatting/input-format';
     import {X} from 'lucide-svelte';
-    import {globalTaxProfile, updateGlobalTaxProfile} from '$lib/tax-profile.svelte';
+    import {GLOBAL_TAX_PROFILE_DEFAULTS, globalTaxProfile, updateGlobalTaxProfile} from '$lib/tax-profile.svelte';
     import * as m from '$lib/paraglide/messages';
 
     let allowanceInputFocused = false;
@@ -49,7 +49,10 @@
                 {#if globalTaxProfile.capitalGainsTaxInput !== ''}
                     <button
                         class="input-with-clear__button"
-                        onclick={() => updateGlobalTaxProfile({capitalGainsTaxInput: ''})}
+                        onclick={() =>
+                            updateGlobalTaxProfile({
+                                capitalGainsTaxInput: GLOBAL_TAX_PROFILE_DEFAULTS.capitalGainsTaxInput
+                            })}
                         aria-label={m.page_rebalancer_clear_field()}
                     ><X size={14} /></button>
                 {/if}
@@ -70,7 +73,10 @@
                 {#if globalTaxProfile.solidaritySurchargeInput !== ''}
                     <button
                         class="input-with-clear__button"
-                        onclick={() => updateGlobalTaxProfile({solidaritySurchargeInput: ''})}
+                        onclick={() =>
+                            updateGlobalTaxProfile({
+                                solidaritySurchargeInput: GLOBAL_TAX_PROFILE_DEFAULTS.solidaritySurchargeInput
+                            })}
                         aria-label={m.page_rebalancer_clear_field()}
                     ><X size={14} /></button>
                 {/if}
@@ -91,7 +97,10 @@
                 {#if globalTaxProfile.churchTaxInput !== ''}
                     <button
                         class="input-with-clear__button"
-                        onclick={() => updateGlobalTaxProfile({churchTaxInput: ''})}
+                        onclick={() =>
+                            updateGlobalTaxProfile({
+                                churchTaxInput: GLOBAL_TAX_PROFILE_DEFAULTS.churchTaxInput
+                            })}
                         aria-label={m.page_rebalancer_clear_field()}
                     ><X size={14} /></button>
                 {/if}
@@ -115,12 +124,15 @@
                     }}
                     onblur={() => {
                         allowanceInputFocused = false;
+                        if (globalTaxProfile.remainingSparerPauschbetragInput.trim() === '') {
+                            updateGlobalTaxProfile({remainingSparerPauschbetragInput: '0'});
+                        }
                     }}
                 />
                 {#if globalTaxProfile.remainingSparerPauschbetragInput !== ''}
                     <button
                         class="input-with-clear__button"
-                        onclick={() => updateGlobalTaxProfile({remainingSparerPauschbetragInput: ''})}
+                        onclick={() => updateGlobalTaxProfile({remainingSparerPauschbetragInput: '0'})}
                         aria-label={m.page_rebalancer_clear_field()}
                     ><X size={14} /></button>
                 {/if}

@@ -9,12 +9,12 @@ function sanitizeTaxCountryCode(value: string | null): TaxCountryCode {
         return value;
     }
 
-    return 'NONE';
+    return 'DEU';
 }
 
 function getInitialTaxCountryCode(): TaxCountryCode {
     if (!browser) {
-        return 'NONE';
+        return 'DEU';
     }
 
     return sanitizeTaxCountryCode(localStorage.getItem(STORAGE_KEY));

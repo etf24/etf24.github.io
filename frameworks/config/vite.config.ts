@@ -8,10 +8,11 @@ import {readFileSync} from 'node:fs';
 const packageJson = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf-8')) as {
     version: string;
 };
+const APP_VERSION = packageJson.version;
 
 export default defineConfig({
     define: {
-        __APP_VERSION__: JSON.stringify(process.env.npm_package_version ?? packageJson.version)
+        __APP_VERSION__: JSON.stringify(APP_VERSION)
     },
     plugins: [
         paraglide({

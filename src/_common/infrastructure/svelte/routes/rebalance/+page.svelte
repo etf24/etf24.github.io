@@ -1,6 +1,6 @@
 <script lang="ts">
     import {browser} from '$app/environment';
-    import {Undo2} from 'lucide-svelte';
+    import {Redo2, Undo2} from 'lucide-svelte';
     import {currency} from '$lib/currency.svelte';
     import {taxCountry} from '$lib/country.svelte';
     import {resultRounding} from '$lib/result-rounding.svelte';
@@ -12,62 +12,58 @@
     import OptionsPanel from '$lib/components/rebalance/OptionsPanel.svelte';
     import * as m from '$lib/paraglide/messages';
     import {
+        captureRedoSnapshot,
         captureSnapshot,
+        captureSnapshotIfChanged,
         createDefaultUiState,
         createHistoryState,
         createNextAsset,
+        type UiState,
         loadUiState,
         normalizeNumericInput,
+        restoreRedoSnapshot,
         restoreSnapshot,
         saveUiState,
-        scheduleSnapshot,
         toAllocationRows,
         toOptionActionRows,
         toOverview
     } from '$rebalance/presentation/rebalancer-ui-state';
 
-    let state = browser ? loadUiState() : createDefaultUiState();
-    let history = createHistoryState();
+    type EditableField = 'name' | 'marketValueInput' | 'targetWeightInput' | 'investedCapitalInput';
 
-    let invalidFields = {} as Record<string, Partial<Record<'marketValue' | 'targetWeight' | 'investedCapital', boolean>>>;
-    let overview = toOverview(state, {
-        taxCountry: taxCountry.code,
-        capitalGainsTaxInput: globalTaxProfile.capitalGainsTaxInput,
-        solidaritySurchargeInput: globalTaxProfile.solidaritySurchargeInput,
-        churchTaxInput: globalTaxProfile.churchTaxInput,
-        remainingSparerPauschbetragInput: globalTaxProfile.remainingSparerPauschbetragInput
-    }).overview;
-    let allocationRows = toAllocationRows(state);
-    let optionACashActions = toOptionActionRows([], state.assets);
-    let optionBTradeActions = toOptionActionRows([], state.assets);
-    let selectedOption: 'A' | 'B' = 'A';
-    let saveTimer: number | null = null;
-    let focusedNumericField: string | null = null;
+    let uiState: UiState = $state(browser ? loadUiState() : createDefaultUiState());
+    let history = $state(createHistoryState());
+    let selectedOption: 'A' | 'B' = $state('A');
+    let saveTimer: number | null = $state(null);
+    let focusedNumericField: string | null = $state(null);
+    let fieldEditStartSnapshots = $state<Record<string, UiState>>({});
 
-    recalculate();
-
-    function refreshHistory(): void {
-        history = {
-            ...history,
-            snapshots: [...history.snapshots]
-        };
-    }
-
-    function recalculate(): void {
-        const mapped = toOverview(state, {
+    const overviewMapping = $derived(
+        toOverview(uiState, {
             taxCountry: taxCountry.code,
             capitalGainsTaxInput: globalTaxProfile.capitalGainsTaxInput,
             solidaritySurchargeInput: globalTaxProfile.solidaritySurchargeInput,
             churchTaxInput: globalTaxProfile.churchTaxInput,
             remainingSparerPauschbetragInput: globalTaxProfile.remainingSparerPauschbetragInput
-        });
+        })
+    );
 
-        overview = mapped.overview;
-        invalidFields = mapped.invalidFields;
-        allocationRows = toAllocationRows(state);
+    const overview = $derived(overviewMapping.overview);
+    const invalidFields = $derived(overviewMapping.invalidFields);
+    const allocationRows = $derived(toAllocationRows(uiState));
+    const optionACashActions = $derived(
+        overview ? toOptionActionRows(overview.optionA_cashOnly.actions, uiState.assets) : []
+    );
+    const optionBTradeActions = $derived(
+        overview ? toOptionActionRows(overview.optionB_tradeRebalance.actions, uiState.assets) : []
+    );
 
-        optionACashActions = overview ? toOptionActionRows(overview.optionA_cashOnly.actions, state.assets) : [];
-        optionBTradeActions = overview ? toOptionActionRows(overview.optionB_tradeRebalance.actions, state.assets) : [];
+    function refreshHistory(): void {
+        history = {
+            ...history,
+            snapshots: [...history.snapshots],
+            redoSnapshots: [...history.redoSnapshots]
+        };
     }
 
     function scheduleSave(): void {
@@ -80,7 +76,7 @@
         }
 
         saveTimer = window.setTimeout(() => {
-            saveUiState(state);
+            saveUiState(uiState);
             saveTimer = null;
         }, 300);
     }
@@ -94,7 +90,7 @@
             partialExemption: 0 | 15 | 30;
         }>
     ) {
-        const sanitized: Partial<typeof state.assets[number]> = {};
+        const sanitized: Partial<UiState['assets'][number]> = {};
 
         if (patch.name !== undefined) {
             sanitized.name = patch.name;
@@ -119,69 +115,124 @@
         return sanitized;
     }
 
-    function updateAsset(assetId: string, patch: Partial<typeof state.assets[number]>): void {
-        scheduleSnapshot(history, state);
+    function cloneUiState(state: UiState): UiState {
+        return {
+            assets: state.assets.map((asset) => ({...asset})),
+            nextAssetIndex: state.nextAssetIndex
+        };
+    }
+
+    function fieldKey(assetId: string, field: EditableField): string {
+        return `${assetId}:${field}`;
+    }
+
+    function applyCommittedMutation(mutator: () => void): void {
+        const previous = cloneUiState(uiState);
+        const snapshotCountBefore = history.snapshots.length;
+
+        mutator();
+        captureSnapshotIfChanged(history, previous, uiState);
+
+        if (history.snapshots.length === snapshotCountBefore) {
+            return;
+        }
+
+        history.redoSnapshots = [];
         refreshHistory();
+        scheduleSave();
+    }
+
+    function updateAssetDraft(assetId: string, patch: Partial<UiState['assets'][number]>): void {
         const sanitized = sanitizeAssetPatch(patch);
 
-        state = {
-            ...state,
-            assets: state.assets.map((asset: typeof state.assets[number]) => (asset.id === assetId ? {...asset, ...sanitized} : asset))
+        uiState = {
+            ...uiState,
+            assets: uiState.assets.map((asset: UiState['assets'][number]) =>
+                asset.id === assetId ? {...asset, ...sanitized} : asset
+            )
         };
+    }
 
-        recalculate();
+    function commitAssetPatch(assetId: string, patch: Partial<UiState['assets'][number]>): void {
+        applyCommittedMutation(() => {
+            const sanitized = sanitizeAssetPatch(patch);
+
+            uiState = {
+                ...uiState,
+                assets: uiState.assets.map((asset: UiState['assets'][number]) =>
+                    asset.id === assetId ? {...asset, ...sanitized} : asset
+                )
+            };
+        });
+    }
+
+    function handleFieldFocus(assetId: string, field: EditableField): void {
+        fieldEditStartSnapshots = {
+            ...fieldEditStartSnapshots,
+            [fieldKey(assetId, field)]: cloneUiState(uiState)
+        };
+    }
+
+    function handleFieldBlur(assetId: string, field: EditableField): void {
+        const key = fieldKey(assetId, field);
+        const previous = fieldEditStartSnapshots[key];
+        if (!previous) {
+            return;
+        }
+
+        const nextSnapshots = {...fieldEditStartSnapshots};
+        delete nextSnapshots[key];
+        fieldEditStartSnapshots = nextSnapshots;
+
+        const snapshotCountBefore = history.snapshots.length;
+        captureSnapshotIfChanged(history, previous, uiState);
+
+        if (history.snapshots.length === snapshotCountBefore) {
+            return;
+        }
+
+        history.redoSnapshots = [];
+        refreshHistory();
         scheduleSave();
     }
 
     function addAsset(): void {
-        if (state.assets.length >= 10) {
+        if (uiState.assets.length >= 10) {
             return;
         }
 
-        captureSnapshot(history, state);
-        refreshHistory();
+        applyCommittedMutation(() => {
+            const draft = {
+                ...uiState,
+                assets: [...uiState.assets]
+            };
 
-        const draft = {
-            ...state,
-            assets: [...state.assets]
-        };
-
-        draft.assets.push(createNextAsset(draft));
-        state = draft;
-
-        recalculate();
-        scheduleSave();
+            draft.assets.push(createNextAsset(draft));
+            uiState = draft;
+        });
     }
 
     function removeAsset(assetId: string): void {
-        if (state.assets.length === 0) {
+        if (uiState.assets.length === 0) {
             return;
         }
 
-        captureSnapshot(history, state);
-        refreshHistory();
-        state = {
-            ...state,
-            assets: state.assets.filter((asset: typeof state.assets[number]) => asset.id !== assetId)
-        };
-
-        recalculate();
-        scheduleSave();
-        refreshHistory();
+        applyCommittedMutation(() => {
+            uiState = {
+                ...uiState,
+                assets: uiState.assets.filter((asset: UiState['assets'][number]) => asset.id !== assetId)
+            };
+        });
     }
 
     function clearAll(): void {
-        captureSnapshot(history, state);
-        refreshHistory();
-        state = createDefaultUiState();
-
-        recalculate();
-        scheduleSave();
-        refreshHistory();
+        applyCommittedMutation(() => {
+            uiState = createDefaultUiState();
+        });
     }
 
     function clearAssetField(assetId: string, field: 'marketValueInput' | 'targetWeightInput' | 'investedCapitalInput'): void {
-        updateAsset(assetId, {[field]: ''});
+        commitAssetPatch(assetId, {[field]: ''});
     }
 
     function undoChange(): void {
@@ -192,8 +243,25 @@
             return;
         }
 
-        state = previous;
-        recalculate();
+        captureRedoSnapshot(history, uiState);
+        uiState = previous;
+        fieldEditStartSnapshots = {};
+        scheduleSave();
+
+        refreshHistory();
+    }
+
+    function redoChange(): void {
+        const next = restoreRedoSnapshot(history);
+
+        if (!next) {
+            refreshHistory();
+            return;
+        }
+
+        captureSnapshot(history, uiState);
+        uiState = next;
+        fieldEditStartSnapshots = {};
         scheduleSave();
 
         refreshHistory();
@@ -262,17 +330,6 @@
 
         return m.page_rebalancer_allocation_target_short();
     }
-
-    $: {
-        currency.code;
-        taxCountry.code;
-        resultRounding.enabled;
-        globalTaxProfile.capitalGainsTaxInput;
-        globalTaxProfile.solidaritySurchargeInput;
-        globalTaxProfile.churchTaxInput;
-        globalTaxProfile.remainingSparerPauschbetragInput;
-        recalculate();
-    }
 </script>
 
 <section class="rebalancer-page">
@@ -296,19 +353,31 @@
                 <Undo2 size={14} />
                 {m.page_rebalancer_undo()}
             </button>
+            <button
+                class="rebalancer-button"
+                onclick={redoChange}
+                disabled={history.redoSnapshots.length === 0}
+                aria-label={m.page_rebalancer_redo()}
+            >
+                <Redo2 size={14} />
+                {m.page_rebalancer_redo()}
+            </button>
         </nav>
     </header>
 
     <section class="rebalancer-grid">
         <AssetsPanel
-            {state}
+            state={uiState}
             {invalidFields}
             currencyCode={currency.code}
             taxCountryCode={taxCountry.code}
-            onUpdateAsset={updateAsset}
+            onUpdateAssetDraft={updateAssetDraft}
+            onCommitAssetPatch={commitAssetPatch}
             onAddAsset={addAsset}
             onRemoveAsset={removeAsset}
             onClearField={clearAssetField}
+            onFieldFocus={handleFieldFocus}
+            onFieldBlur={handleFieldBlur}
             onMoneyFocus={handleMoneyFieldFocus}
             onMoneyBlur={handleMoneyFieldBlur}
             {displayMoneyInput}
@@ -328,6 +397,7 @@
             {optionBTradeActions}
             {selectedOption}
             currencyCode={currency.code}
+            taxCountryCode={taxCountry.code}
             resultRoundingEnabled={resultRounding.enabled}
             onSelectOption={(option) => {
                 selectedOption = option;

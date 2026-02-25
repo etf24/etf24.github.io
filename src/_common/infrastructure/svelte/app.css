@@ -8,6 +8,18 @@
 	--font-sans: 'Lato', sans-serif;
 }
 
+:root {
+	--scrollbar-track: #e5e7eb;
+	--scrollbar-thumb: #94a3b8;
+	--scrollbar-thumb-hover: #64748b;
+}
+
+.dark {
+	--scrollbar-track: #1f2937;
+	--scrollbar-thumb: #475569;
+	--scrollbar-thumb-hover: #64748b;
+}
+
 /* ── App Layout ─────────────────────────────────────────── */
 
 .app-layout {
@@ -17,6 +29,36 @@
 .app-layout__main {
 	@apply flex-1 overflow-y-auto;
 	@apply dark:bg-gray-900;
+}
+
+.app-layout__main,
+.sidebar__content {
+	scrollbar-width: auto;
+	scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+.app-layout__main::-webkit-scrollbar,
+.sidebar__content::-webkit-scrollbar {
+	width: 14px;
+	height: 14px;
+}
+
+.app-layout__main::-webkit-scrollbar-track,
+.sidebar__content::-webkit-scrollbar-track {
+	background: var(--scrollbar-track);
+	border-radius: 9999px;
+}
+
+.app-layout__main::-webkit-scrollbar-thumb,
+.sidebar__content::-webkit-scrollbar-thumb {
+	background: var(--scrollbar-thumb);
+	border-radius: 9999px;
+	border: 3px solid var(--scrollbar-track);
+}
+
+.app-layout__main::-webkit-scrollbar-thumb:hover,
+.sidebar__content::-webkit-scrollbar-thumb:hover {
+	background: var(--scrollbar-thumb-hover);
 }
 
 /* ── Navbar ─────────────────────────────────────────────── */
@@ -76,8 +118,14 @@
 }
 
 .sidebar-rail {
-	@apply flex w-12 shrink-0 items-start justify-center border-l border-gray-200 bg-gray-50 pt-6;
+	@apply flex w-12 shrink-0 cursor-pointer items-start justify-center border-l border-gray-200 bg-gray-50 pt-6;
+	@apply text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700;
 	@apply dark:border-gray-700 dark:bg-gray-800;
+	@apply dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100;
+}
+
+.sidebar-rail:focus-visible {
+	@apply outline-none ring-2 ring-blue-500 ring-inset;
 }
 
 .sidebar__tabs {
@@ -100,19 +148,12 @@
 }
 
 .sidebar__content {
-	@apply flex-1 overflow-y-auto p-4;
+	@apply flex-1 overflow-y-auto p-6;
 }
 
 .sidebar__empty {
 	@apply text-sm text-gray-400;
 	@apply dark:text-gray-500;
-}
-
-/* ── Button ─────────────────────────────────────────────── */
-
-.button--icon {
-	@apply rounded-md border border-gray-300 bg-white p-1.5 text-gray-500 shadow-sm hover:bg-gray-50 hover:text-gray-700;
-	@apply dark:border-gray-600 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200;
 }
 
 /* ── Page Header ────────────────────────────────────────── */

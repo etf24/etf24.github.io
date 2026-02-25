@@ -89,6 +89,17 @@
 
 		touchTracking = false;
 	}
+
+	function toggleSidebar(): void {
+		sidebarOpen = !sidebarOpen;
+	}
+
+	function handleSidebarRailKeydown(event: KeyboardEvent): void {
+		if (event.key === 'Enter' || event.key === ' ') {
+			event.preventDefault();
+			toggleSidebar();
+		}
+	}
 </script>
 
 <svelte:head>
@@ -111,19 +122,20 @@
 
 		<Sidebar content={globalSettings} bind:open={sidebarOpen} />
 
-		<aside class="sidebar-rail">
-			<button
-				class="button--icon"
-				onclick={() => (sidebarOpen = !sidebarOpen)}
-				title={sidebarOpen ? m.sidebar_toggle_hide() : m.sidebar_toggle_show()}
-			>
-				{#if sidebarOpen}
-					<PanelRightClose size={16} />
-				{:else}
-					<PanelRightOpen size={16} />
-				{/if}
-			</button>
-		</aside>
+		<button
+			class="sidebar-rail"
+			aria-label={sidebarOpen ? m.sidebar_toggle_hide() : m.sidebar_toggle_show()}
+			title={sidebarOpen ? m.sidebar_toggle_hide() : m.sidebar_toggle_show()}
+			onclick={toggleSidebar}
+			onkeydown={handleSidebarRailKeydown}
+			type="button"
+		>
+			{#if sidebarOpen}
+				<PanelRightClose size={16} />
+			{:else}
+				<PanelRightOpen size={16} />
+			{/if}
+		</button>
 	</section>
 </ParaglideJS>
 

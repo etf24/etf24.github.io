@@ -56,8 +56,7 @@ export interface UiState {
 
 export interface HistoryState {
     snapshots: UiState[];
-    pendingCapture: boolean;
-    captureTimer: number | null;
+    redoSnapshots: UiState[];
     undoToastVisible: boolean;
     undoToastTimer: number | null;
 }
@@ -99,8 +98,7 @@ export function createDefaultUiState(): UiState {
 export function createHistoryState(): HistoryState {
     return {
         snapshots: [],
-        pendingCapture: false,
-        captureTimer: null,
+        redoSnapshots: [],
         undoToastVisible: false,
         undoToastTimer: null
     };
@@ -136,22 +134,12 @@ export function captureSnapshot(history: HistoryState, state: UiState): void {
     history.snapshots = [...history.snapshots, cloneState(state)].slice(-HISTORY_LIMIT);
 }
 
-export function scheduleSnapshot(history: HistoryState, state: UiState): void {
-    if (history.pendingCapture) {
+export function captureSnapshotIfChanged(history: HistoryState, previous: UiState, next: UiState): void {
+    if (areUiStatesEqual(previous, next)) {
         return;
     }
 
-    history.pendingCapture = true;
-    captureSnapshot(history, state);
-
-    if (history.captureTimer !== null) {
-        clearTimeout(history.captureTimer);
-    }
-
-    history.captureTimer = window.setTimeout(() => {
-        history.pendingCapture = false;
-        history.captureTimer = null;
-    }, 600);
+    captureSnapshot(history, previous);
 }
 
 export function restoreSnapshot(history: HistoryState): UiState | null {
@@ -162,6 +150,20 @@ export function restoreSnapshot(history: HistoryState): UiState | null {
 
     history.snapshots = history.snapshots.slice(0, -1);
     return cloneState(previous);
+}
+
+export function captureRedoSnapshot(history: HistoryState, state: UiState): void {
+    history.redoSnapshots = [...history.redoSnapshots, cloneState(state)].slice(-HISTORY_LIMIT);
+}
+
+export function restoreRedoSnapshot(history: HistoryState): UiState | null {
+    const next = history.redoSnapshots[history.redoSnapshots.length - 1];
+    if (!next) {
+        return null;
+    }
+
+    history.redoSnapshots = history.redoSnapshots.slice(0, -1);
+    return cloneState(next);
 }
 
 export function showUndoToast(history: HistoryState): void {
@@ -232,6 +234,7 @@ export function toOverview(
 } {
     const dtoAssets: AssetInputDto[] = [];
     const invalidFields: InvalidFieldMap = {};
+    let combinedTargetWeight = 0;
 
     for (const asset of state.assets) {
         const marketValue = parseRequiredMoneyToCents(asset.marketValueInput);
@@ -245,6 +248,8 @@ export function toOverview(
 
         if (!targetWeight.isValid) {
             fieldErrors.targetWeight = true;
+        } else if (targetWeight.value !== null) {
+            combinedTargetWeight += targetWeight.value;
         }
 
         if (investedCapital.isInvalid) {
@@ -276,6 +281,15 @@ export function toOverview(
         dtoAssets.push(dtoAsset);
     }
 
+    if (combinedTargetWeight > 100) {
+        for (const asset of state.assets) {
+            invalidFields[asset.id] = {
+                ...invalidFields[asset.id],
+                targetWeight: true
+            };
+        }
+    }
+
     if (dtoAssets.length === 0) {
         return {overview: null, invalidFields};
     }
@@ -293,7 +307,7 @@ export function toOverview(
         const cap = parsePercent(options.capitalGainsTaxInput);
         const soli = parsePercent(options.solidaritySurchargeInput);
         const church = parsePercent(options.churchTaxInput);
-        const remainingSparerPauschbetrag = parseMoneyToCents(options.remainingSparerPauschbetragInput);
+        const remainingSparerPauschbetrag = parseMoneyToCentsOrZero(options.remainingSparerPauschbetragInput);
 
         if (cap !== null && soli !== null && church !== null && remainingSparerPauschbetrag !== null) {
             input.taxProfile = createTaxProfile({
@@ -389,6 +403,15 @@ function parseMoneyToCents(input: string): number | null {
     return Math.round(value * 100);
 }
 
+function parseMoneyToCentsOrZero(input: string): number | null {
+    const normalized = normalizeNumericInput(input.trim());
+    if (!normalized) {
+        return 0;
+    }
+
+    return parseMoneyToCents(normalized);
+}
+
 function parsePercent(input: string): number | null {
     const normalized = normalizeNumericInput(input.trim());
     if (!normalized) {
@@ -467,4 +490,34 @@ function cloneState(state: UiState): UiState {
         assets: state.assets.map((asset) => ({...asset})),
         nextAssetIndex: state.nextAssetIndex
     };
+}
+
+function areUiStatesEqual(left: UiState, right: UiState): boolean {
+    if (left.nextAssetIndex !== right.nextAssetIndex) {
+        return false;
+    }
+
+    if (left.assets.length !== right.assets.length) {
+        return false;
+    }
+
+    for (let i = 0; i < left.assets.length; i += 1) {
+        const leftAsset = left.assets[i];
+        const rightAsset = right.assets[i];
+
+        if (
+            leftAsset.id !== rightAsset.id ||
+            leftAsset.label !== rightAsset.label ||
+            leftAsset.colorToken !== rightAsset.colorToken ||
+            leftAsset.name !== rightAsset.name ||
+            leftAsset.marketValueInput !== rightAsset.marketValueInput ||
+            leftAsset.targetWeightInput !== rightAsset.targetWeightInput ||
+            leftAsset.investedCapitalInput !== rightAsset.investedCapitalInput ||
+            leftAsset.partialExemption !== rightAsset.partialExemption
+        ) {
+            return false;
+        }
+    }
+
+    return true;
 }

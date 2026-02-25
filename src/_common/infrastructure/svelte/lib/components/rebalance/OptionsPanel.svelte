@@ -3,6 +3,7 @@
     import type {RebalanceOverviewDto} from '$rebalance/application/rebalancer/dto/rebalance-dto';
     import type {UiActionRow} from '$rebalance/presentation/rebalancer-ui-state';
     import type {CurrencyCode} from '$lib/currency.svelte';
+    import type {TaxCountryCode} from '$lib/country.svelte';
     import * as m from '$lib/paraglide/messages';
 
     let {
@@ -11,6 +12,7 @@
         optionBTradeActions,
         selectedOption,
         currencyCode,
+        taxCountryCode,
         resultRoundingEnabled,
         onSelectOption,
         formatMoney,
@@ -23,6 +25,7 @@
         optionBTradeActions: UiActionRow[];
         selectedOption: 'A' | 'B';
         currencyCode: CurrencyCode;
+        taxCountryCode: TaxCountryCode;
         resultRoundingEnabled: boolean;
         onSelectOption: (option: 'A' | 'B') => void;
         formatMoney: (value: Money, currencyCode: CurrencyCode, roundingEnabled: boolean) => string;
@@ -105,14 +108,26 @@
                     {m.page_rebalancer_trade_surplus_label()}
                     {formatMoney(overview.optionB_tradeRebalance.cashSurplus, currencyCode, resultRoundingEnabled)}
                 </p>
-                <p
-                    class="result-card__tax {overview.optionB_tradeRebalance.totalTaxesOnSell.isZero()
-                        ? 'result-card__tax--neutral'
-                        : ''}"
-                >
-                    {m.page_rebalancer_trade_tax_total_label()}
-                    {formatMoney(overview.optionB_tradeRebalance.totalTaxesOnSell, currencyCode, resultRoundingEnabled)}
-                </p>
+                {#if taxCountryCode === 'DEU'}
+                    <p
+                        class="result-card__tax {overview.optionB_tradeRebalance.totalTaxesOnSell.isZero()
+                            ? 'result-card__tax--neutral'
+                            : ''}"
+                    >
+                        {m.page_rebalancer_trade_tax_total_label()}
+                        {#if resultRoundingEnabled &&
+                            overview.optionB_tradeRebalance.totalTaxesOnSell.toCents() > 0 &&
+                            Math.round(overview.optionB_tradeRebalance.totalTaxesOnSell.toCents() / 100) === 0}
+                            {currencyCode === 'EUR' ? '<1€' : currencyCode === 'USD' ? '<$1' : '<1'}
+                        {:else}
+                            {formatMoney(
+                                overview.optionB_tradeRebalance.totalTaxesOnSell,
+                                currencyCode,
+                                resultRoundingEnabled
+                            )}
+                        {/if}
+                    </p>
+                {/if}
 
                 <section class="result-actions">
                     <table class="result-actions__table">

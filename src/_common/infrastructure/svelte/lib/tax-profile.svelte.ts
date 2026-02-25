@@ -9,7 +9,7 @@ export interface GlobalTaxProfileState {
 
 const STORAGE_KEY = 'global-tax-profile-v1';
 
-const DEFAULTS: GlobalTaxProfileState = {
+export const GLOBAL_TAX_PROFILE_DEFAULTS: GlobalTaxProfileState = {
     capitalGainsTaxInput: '25',
     solidaritySurchargeInput: '5.5',
     churchTaxInput: '0',
@@ -22,27 +22,33 @@ function sanitizeValue(value: unknown, fallback: string): string {
 
 function getInitialState(): GlobalTaxProfileState {
     if (!browser) {
-        return {...DEFAULTS};
+        return {...GLOBAL_TAX_PROFILE_DEFAULTS};
     }
 
     try {
         const raw = localStorage.getItem(STORAGE_KEY);
         if (!raw) {
-            return {...DEFAULTS};
+            return {...GLOBAL_TAX_PROFILE_DEFAULTS};
         }
 
         const parsed = JSON.parse(raw) as Partial<GlobalTaxProfileState>;
         return {
-            capitalGainsTaxInput: sanitizeValue(parsed.capitalGainsTaxInput, DEFAULTS.capitalGainsTaxInput),
-            solidaritySurchargeInput: sanitizeValue(parsed.solidaritySurchargeInput, DEFAULTS.solidaritySurchargeInput),
-            churchTaxInput: sanitizeValue(parsed.churchTaxInput, DEFAULTS.churchTaxInput),
+            capitalGainsTaxInput: sanitizeValue(
+                parsed.capitalGainsTaxInput,
+                GLOBAL_TAX_PROFILE_DEFAULTS.capitalGainsTaxInput
+            ),
+            solidaritySurchargeInput: sanitizeValue(
+                parsed.solidaritySurchargeInput,
+                GLOBAL_TAX_PROFILE_DEFAULTS.solidaritySurchargeInput
+            ),
+            churchTaxInput: sanitizeValue(parsed.churchTaxInput, GLOBAL_TAX_PROFILE_DEFAULTS.churchTaxInput),
             remainingSparerPauschbetragInput: sanitizeValue(
                 parsed.remainingSparerPauschbetragInput,
-                DEFAULTS.remainingSparerPauschbetragInput
+                GLOBAL_TAX_PROFILE_DEFAULTS.remainingSparerPauschbetragInput
             )
         };
     } catch {
-        return {...DEFAULTS};
+        return {...GLOBAL_TAX_PROFILE_DEFAULTS};
     }
 }
 

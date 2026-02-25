@@ -9,12 +9,12 @@ function sanitizeCurrencyCode(value: string | null): CurrencyCode {
         return value;
     }
 
-    return 'NONE';
+    return 'EUR';
 }
 
 function getInitialCurrencyCode(): CurrencyCode {
     if (!browser) {
-        return 'NONE';
+        return 'EUR';
     }
 
     return sanitizeCurrencyCode(localStorage.getItem(STORAGE_KEY));
